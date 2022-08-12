@@ -9,7 +9,7 @@ update:; forge update
 # change ETH_RPC_URL to another one (e.g., FTM_RPC_URL) for different chains
 FORK_URL := ${ETH_RPC_URL} 
 build  :; forge build
-test  :; forge test
+test  :; forge test -vvv
 trace  :; forge test -vvv
 # tests with forks
 test-fork   :; forge test -vv --fork-url ${FORK_URL} --etherscan-api-key ${ETHERSCAN_API_KEY}

@@ -13,21 +13,19 @@ import {ExtendedDSTest} from "./ExtendedDSTest.sol";
 import {IVault} from "../../interfaces/IVault.sol";
 import "../../interfaces/IERC4626.sol";
 
-// NOTE: if the name of the strat or file changes this needs to be updated
-import {MockStrategy} from "./MockStrategy.sol";
 import {Token} from "./Token.sol";
 
 // Artifact paths for deploying from the deps folder, assumes that the command is run from
 // the project root.
 string constant vaultArtifact = "artifacts/Vault.json";
 
-// Base fixture deploying Vault and MockStrategy
-contract TestFixture is ExtendedDSTest {
+// Base fixture deploying Vault only, so a custom strategy can be tested
+contract TestFixtureCustomStrat is ExtendedDSTest {
     using SafeERC20 for IERC20;
 
     VaultAPI public vault;
+    IVault public ivault;
     IERC4626 public vaultWrapper;
-    MockStrategy public strategy;
     IERC20 public weth;
     IERC20 public want;
 
@@ -58,22 +56,23 @@ contract TestFixture is ExtendedDSTest {
     function setUp() public virtual {
         // NOTE: skip a few seconds to avoid block.timestamp == 0
         skip(10 seconds);
+
+        // Create test token 
         Token _token = new Token(uint8(18));
         want = IERC20(_token);
 
-        (address _vault, address _strategy) = deployVaultAndStrategy(
+        // Create test vault that uses the ERC4626 interface
+        address _vault = deployVault(
             address(want),
             gov,
             rewards,
-            "",
-            "",
+            "testVault",
+            "testVaultToken",
             guardian,
-            management,
-            keeper,
-            strategist
+            management
         );
+        ivault = IVault(_vault);
         vault = VaultAPI(_vault);
-        strategy = MockStrategy(_strategy);
         VaultWrapper _vaultWrapper = new VaultWrapper(vault);
         vaultWrapper = IERC4626(_vaultWrapper);
 
@@ -83,9 +82,7 @@ contract TestFixture is ExtendedDSTest {
 
         bigAmount = uint256(bigDollarNotional) * 10**vault.decimals();
 
-        // add more labels to make your traces readable
         vm.label(address(vault), "Vault");
-        vm.label(address(strategy), "Strategy");
         vm.label(address(want), "Want");
         vm.label(address(vaultWrapper), "VaultWrapper");
         vm.label(gov, "Gov");
@@ -96,8 +93,6 @@ contract TestFixture is ExtendedDSTest {
         vm.label(management, "Management");
         vm.label(strategist, "Strategist");
         vm.label(keeper, "Keeper");
-
-        // do here additional setup
     }
 
     // Deploys a vault
@@ -129,48 +124,5 @@ contract TestFixture is ExtendedDSTest {
         _vault.setDepositLimit(type(uint256).max);
 
         return address(_vault);
-    }
-
-    // Deploys a strategy
-    function deployStrategy(address _vault) public returns (address) {
-        MockStrategy _strategy = new MockStrategy(_vault);
-
-        return address(_strategy);
-    }
-
-    // Deploys a vault and strategy attached to vault
-    function deployVaultAndStrategy(
-        address _token,
-        address _gov,
-        address _rewards,
-        string memory _name,
-        string memory _symbol,
-        address _guardian,
-        address _management,
-        address _keeper,
-        address _strategist
-    ) public returns (address _vaultAddr, address _strategyAddr) {
-        _vaultAddr = deployVault(
-            _token,
-            _gov,
-            _rewards,
-            _name,
-            _symbol,
-            _guardian,
-            _management
-        );
-        IVault _vault = IVault(_vaultAddr);
-
-        vm.prank(_strategist);
-        _strategyAddr = deployStrategy(_vaultAddr);
-        MockStrategy _strategy = MockStrategy(_strategyAddr);
-
-        vm.prank(_strategist);
-        _strategy.setKeeper(_keeper);
-
-        vm.prank(_gov);
-        _vault.addStrategy(_strategyAddr, 10_000, 0, type(uint256).max, 1_000);
-
-        return (address(_vault), address(_strategy));
     }
 }
