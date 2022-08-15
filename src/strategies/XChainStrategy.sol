@@ -5,6 +5,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {BaseStrategyInitializable, StrategyParams, VaultAPI} from "@yearnvaults/contracts/BaseStrategy.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "forge-std/console.sol";
+import {IConnextHandler} from "nxtp/core/connext/interfaces/IConnextHandler.sol";
+import {ICallback} from "nxtp/core/promise/interfaces/ICallback.sol";
+import {CallParams, XCallArgs} from "nxtp/core/connext/libraries/LibConnextStorage.sol";
 
 /*
  * Cross-chain strategy.
@@ -37,7 +40,7 @@ contract XChainStrategy is BaseStrategyInitializable {
         if (delegateEverything) {
             return vault.strategies(address(this)).totalDebt;
         } else {
-            return 0;
+            return 0;   
         }
     }
 
@@ -99,7 +102,7 @@ contract XChainStrategy is BaseStrategyInitializable {
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
         // do a cross-chain transfer to send funds to YieldStrategy 
-        
+
         console.log("called adjustPosition");
     }
 

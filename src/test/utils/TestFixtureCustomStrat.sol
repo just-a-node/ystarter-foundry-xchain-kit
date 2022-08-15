@@ -19,18 +19,22 @@ import {Token} from "./Token.sol";
 // the project root.
 string constant vaultArtifact = "artifacts/Vault.json";
 
-// Base fixture deploying Vault only, so a custom strategy can be tested
+// Base fixture deploying ERC4626 vaults on two domains
 contract TestFixtureCustomStrat is ExtendedDSTest {
     using SafeERC20 for IERC20;
 
-    VaultAPI public vault;
-    IVault public ivault;
-    IERC4626 public vaultWrapper;
-    IERC20 public weth;
-    IERC20 public want;
+    uint256 public domainA;
+    uint256 public domainB;
 
-    mapping(string => address) public tokenAddrs;
-    mapping(string => uint256) public tokenPrices;
+    VaultAPI public vaultA;
+    IVault public ivaultA;
+    IERC4626 public vaultWrapperA;
+    IERC20 public wantA;
+
+    VaultAPI public vaultB;
+    IVault public ivaultB;
+    IERC4626 public vaultWrapperB;
+    IERC20 public wantB;
 
     address public gov = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
     address public user = address(1);
@@ -57,34 +61,65 @@ contract TestFixtureCustomStrat is ExtendedDSTest {
         // NOTE: skip a few seconds to avoid block.timestamp == 0
         skip(10 seconds);
 
-        // Create test token 
-        Token _token = new Token(uint8(18));
-        want = IERC20(_token);
+        // create forks for the two domains
+        domainA = vm.createFork(vm.envString("GOERLI_RPC_URL"));
+        domainB = vm.createFork(vm.envString("RINKEBY_RPC_URL"));
 
-        // Create test vault that uses the ERC4626 interface
-        address _vault = deployVault(
-            address(want),
+        ////////////////// DOMAIN A SETUP //////////////////
+        vm.selectFork(domainA);
+
+        // Create want token on domainA
+        Token _tokenA = new Token(uint8(18));
+        wantA = IERC20(_tokenA);
+
+        // Create vault that uses the ERC4626 interface on domainA
+        address _vaultA = deployVault(
+            address(wantA),
             gov,
             rewards,
-            "testVault",
-            "testVaultToken",
+            "testVaultA",
+            "testVaultTokenA",
             guardian,
             management
         );
-        ivault = IVault(_vault);
-        vault = VaultAPI(_vault);
-        VaultWrapper _vaultWrapper = new VaultWrapper(vault);
-        vaultWrapper = IERC4626(_vaultWrapper);
+        ivaultA = IVault(_vaultA);
+        vaultA = VaultAPI(_vaultA);
+        VaultWrapper _vaultWrapperA = new VaultWrapper(vaultA);
+        vaultWrapperA = IERC4626(_vaultWrapperA);
+
+        ////////////////// DOMAIN B SETUP //////////////////
+        vm.selectFork(domainB);
+
+        // Create want token on domainB
+        Token _tokenB = new Token(uint8(18));
+        wantB = IERC20(_tokenB);
+
+        // Create vault that uses the ERC4626 interface on domainB
+        address _vaultB = deployVault(
+            address(wantB),
+            gov,
+            rewards,
+            "testVaultB",
+            "testVaultTokenB",
+            guardian,
+            management
+        );
+        ivaultB = IVault(_vaultB);
+        vaultB = VaultAPI(_vaultB);
+        VaultWrapper _vaultWrapperB = new VaultWrapper(vaultB);
+        vaultWrapperB = IERC4626(_vaultWrapperB);
 
         // NOTE: assume Token is priced to 1 for simplicity
-        minFuzzAmt = 10**vault.decimals() / 10;
-        maxFuzzAmt = uint256(maxDollarNotional) * 10**vault.decimals();
+        minFuzzAmt = 10**vaultA.decimals() / 10;
+        maxFuzzAmt = uint256(maxDollarNotional) * 10**vaultA.decimals();
+        bigAmount = uint256(bigDollarNotional) * 10**vaultA.decimals();
 
-        bigAmount = uint256(bigDollarNotional) * 10**vault.decimals();
-
-        vm.label(address(vault), "Vault");
-        vm.label(address(want), "Want");
-        vm.label(address(vaultWrapper), "VaultWrapper");
+        vm.label(address(vaultA), "VaultA");
+        vm.label(address(wantA), "WantA");
+        vm.label(address(vaultWrapperA), "VaultWrapperA");
+        vm.label(address(vaultB), "VaultB");
+        vm.label(address(wantB), "WantB");
+        vm.label(address(vaultWrapperB), "VaultWrapperB");
         vm.label(gov, "Gov");
         vm.label(user, "User");
         vm.label(whale, "Whale");

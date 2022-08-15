@@ -8,41 +8,38 @@ import {Token} from "./utils/Token.sol";
 import "forge-std/console.sol";
 
 contract XChainStrategyTest is TestFixtureCustomStrat {
-    uint256 public domainA;
-    uint256 public domainB;
-
     XChainStrategy public xStrategy;
     yieldStrategy public yieldStrategy;
 
     function setUp() public override {
         super.setUp();
 
-        // create forks for two domains
-        domainA = vm.createFork(vm.envString("GOERLI_RPC_URL"));
-        domainB = vm.createFork(vm.envString("RINKEBY_RPC_URL"));
-
         // setup the xchain strategy under test on DomainA
         vm.selectFork(domainA);
         vm.startPrank(strategist);
-        xStrategy = new XChainStrategy(address(vault));
+        xStrategy = new XChainStrategy(address(vaultA));
         xStrategy.setKeeper(keeper);
-
-        // setup the strategy that will yield returns on DomainB
-        vm.selectFork(domainB);
-        yieldStrategy = new yieldStrategy(address(vault));
         vm.stopPrank();
 
+        vm.prank(gov);
+        ivaultA.addStrategy(address(strategyA), 10_000, 0, type(uint256).max, 1_000);
 
-        console.log(strategy.name());
+        // setup the yield-generating strategy on DomainB
+        vm.selectFork(domainB);
+        vm.startPrank(strategist);
+        yieldStrategy = new yieldStrategy(address(vaultB));
+        xStrategy.setKeeper(keeper);
+        vm.stopPrank();
 
         vm.prank(gov);
-        ivault.addStrategy(address(strategy), 10_000, 0, type(uint256).max, 1_000);
+        ivaultB.addStrategy(address(strategyB), 10_000, 0, type(uint256).max, 1_000);
+
+        console.log(xStrategy.name());
+        console.log(yieldStrategy.name());
     }
 
     function testOperation() public {
         vm.selectFork(domainA);
         console.log(vm.activeFork());
-
-
     }
 }

@@ -1,4 +1,7 @@
- ds-test/=lib/ds-test/src/
- @yearnvaults/=lib/yearn-vaults/
- @openzeppelin/=lib/openzeppelin-contracts/
- forge-std/=lib/forge-std/src/
+ds-test/=lib/ds-test/src/
+@yearnvaults/=lib/yearn-vaults/
+@openzeppelin/=lib/openzeppelin-contracts/
+nxtp=lib/nxtp/packages/deployments/contracts/contracts/
+forge-std/=lib/forge-std/src/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts
+@openzeppelin/contracts-upgradeable/=lib/nxtp/packages/deployments/contracts/lib/openzeppelin-contracts-upgradeable/contracts
