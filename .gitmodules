@@ -15,6 +15,7 @@
 [submodule "lib/nxtp"]
 	path = lib/nxtp
 	url = https://github.com/connext/nxtp
+	branch = prod 
 [submodule "/Users/eddie/connext/clean/ystarter-foundry-kit/lib/nxtp"]
 	branch = main
 [submodule "lib/openzeppelin-contracts-upgradeable"]
