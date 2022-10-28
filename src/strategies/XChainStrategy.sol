@@ -8,40 +8,52 @@ import "forge-std/console.sol";
 import {IConnextHandler} from "nxtp/core/connext/interfaces/IConnextHandler.sol";
 import {ICallback} from "nxtp/core/promise/interfaces/ICallback.sol";
 import {CallParams, XCallArgs} from "nxtp/core/connext/libraries/LibConnextStorage.sol";
+import {ExtendedDSTest} from "../test/utils/ExtendedDSTest.sol";
 
-/*
- * Cross-chain strategy.
- */
+/********************
+ *
+ * Example of a cross-chain strategy.
+ *
+ * @dev to simulate gains just transfer/airdrop tokens to this contract and call harvest
+ * @dev for instructive purposes we avoid using unchecked block in some spots
+ *
+ ********************/
 
-// DEV NOTE: to simulate gains just transfer/airdrop tokens to this contract and call harvest
-// DEV NOTE: for instructive purposes we avoid using unchecked block in some spots
-contract XChainStrategy is BaseStrategyInitializable {
-    bool public delegateEverything;
+contract XChainStrategy is BaseStrategyInitializable, ExtendedDSTest {
+    // Connext contracts
+    IConnextHandler public immutable connext;
+    // address public immutable promiseRouter;
+
+    // Nomad Domain IDs
+    uint32 public immutable originDomain;
+    uint32 public immutable destinationDomain;
+
+    // Contracts on destination domain
+    address public destinationVault;
+    address public destinationStrategy;
 
     // Some token that needs to be protected for some reason
     // Initialize this to some fake address, because we're just using it
     // to test `BaseStrategy.protectedTokens()`
     address public constant PROTECTED_TOKEN = address(0xbad);
 
-    constructor(address _vault) BaseStrategyInitializable(_vault) {
-        console.log("ok");
+    constructor(
+        address _vault,
+        uint32 _originDomain,
+        uint32 _destinationDomain,
+        IConnextHandler _connext,
+        address _destinationVault, 
+        address _destinationStrategy 
+    ) BaseStrategyInitializable(_vault) {
+        originDomain = _originDomain;
+        destinationDomain = _destinationDomain;
+        connext = _connext;
+        destinationVault = _destinationVault;
+        destinationStrategy = _destinationStrategy;
     }
 
     function name() external pure override returns (string memory) {
         return string(abi.encodePacked("XChainStrategy ", apiVersion()));
-    }
-
-    // NOTE: This is a test-only function to simulate delegation
-    function _toggleDelegation() public {
-        delegateEverything = !delegateEverything;
-    }
-
-    function delegatedAssets() external view override returns (uint256) {
-        if (delegateEverything) {
-            return vault.strategies(address(this)).totalDebt;
-        } else {
-            return 0;   
-        }
     }
 
     // NOTE: This is a test-only function to simulate losses
@@ -99,11 +111,12 @@ contract XChainStrategy is BaseStrategyInitializable {
         console.log("prepareReturn _debtPayment", _debtPayment);
     }
 
-
     function adjustPosition(uint256 _debtOutstanding) internal override {
-        // do a cross-chain transfer to send funds to YieldStrategy 
+        console.log("in adjustposition, debtOutstanding:", _debtOutstanding);
+        uint256 balanceOfWant = want.balanceOf(address(this));
+        console.log("balanceOfWant", balanceOfWant);
 
-        console.log("called adjustPosition");
+        // xDeposit(destinationVault, originDomain, destinationDomain, balanceOfWant);
     }
 
     function liquidatePosition(uint256 _amountNeeded)
@@ -127,7 +140,7 @@ contract XChainStrategy is BaseStrategyInitializable {
     }
 
     function prepareMigration(address _newStrategy) internal override {
-        // Nothing needed here because no additional tokens/tokenized positions for mock
+        // do nothing
     }
 
     function protectedTokens()
@@ -149,4 +162,58 @@ contract XChainStrategy is BaseStrategyInitializable {
         uint256 totalAssets = want.balanceOf(address(this));
         amountFreed = totalAssets;
     }
+
+    /**
+     * @notice
+     *  Execute a cross-chain deposit into the yield-generating domain's vault.
+     * @dev
+     *  This call and `harvestTrigger()` should never return `true` at the same
+     *  time.
+     */
+    // function xDeposit(
+    //     address vault, 
+    //     uint32 originDomain, 
+    //     uint32 destinationDomain, 
+    //     uint256 amount
+    // ) internal {
+    //     bytes4 selector = bytes4(keccak256("deposit(uint256,address)"));
+    //     bytes memory callData = abi.encodeWithSelector(selector, amount);
+
+    //     CallParams memory callParams = CallParams({
+    //         to: vault,
+    //         callData: callData,
+    //         originDomain: originDomain,
+    //         destinationDomain: destinationDomain,
+    //         agent: msg.sender, // address allowed to transaction on destination side in addition to relayers
+    //         recovery: msg.sender, // fallback address to send funds to if execution fails on destination side
+    //         forceSlow: false, // option to force Nomad slow path (~30 mins) instead of paying 0.05% fee
+    //         receiveLocal: false, // option to receive the local Nomad-flavored asset instead of the adopted asset
+    //         // callback: address(this), // this contract implements the callback
+    //         callback: address(0), // no callback
+    //         callbackFee: 0, // fee paid to relayers; relayers don't take any fees on testnet
+    //         relayerFee: 0, // fee paid to relayers; relayers don't take any fees on testnet
+    //         slippageTol: 9995 // tolerate .05% slippage
+    //     });
+
+    //     XCallArgs memory xcallArgs = XCallArgs({
+    //         params: callParams,
+    //         transactingAssetId: address(want),
+    //         amount: amount
+    //     });
+
+    //     connext.xcall(xcallArgs);
+    // }
+
+    /**
+     * Callback function required for contracts implementing the ICallback interface.
+     @dev This function is called to handle return data from the destination domain.
+     */ 
+    // function callback(
+    //     bytes32 transferId,
+    //     bool success,
+    //     bytes memory data
+    // ) external onlyPromiseRouter {
+    //     uint256 newValue = abi.decode(data, (uint256));
+    //     emit CallbackCalled(transferId, success, newValue);
+    // }
 }

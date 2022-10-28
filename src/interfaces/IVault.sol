@@ -32,7 +32,7 @@ interface IVault is IERC20 {
         bytes calldata signature
     ) external returns (bool);
 
-    function initialize(
+function initialize(
         address token,
         address governance,
         address rewards,

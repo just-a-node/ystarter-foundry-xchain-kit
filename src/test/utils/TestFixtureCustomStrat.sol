@@ -18,6 +18,7 @@ import {Token} from "./Token.sol";
 // Artifact paths for deploying from the deps folder, assumes that the command is run from
 // the project root.
 string constant vaultArtifact = "artifacts/Vault.json";
+// string constant vaultArtifact = "out/YieldVault.sol/YieldVault.json";
 
 // Base fixture deploying ERC4626 vaults on two domains
 contract TestFixtureCustomStrat is ExtendedDSTest {
@@ -26,14 +27,21 @@ contract TestFixtureCustomStrat is ExtendedDSTest {
     uint256 public domainA;
     uint256 public domainB;
 
-    VaultAPI public vaultA;
-    IVault public ivaultA;
-    IERC4626 public vaultWrapperA;
-    IERC20 public wantA;
+    uint32 public originDomain = 1735353714;
+    uint32 public destinationDomain = 1735356532;
+    address public originConnext = 0x8664bE4C5C12c718838b5dCd8748B66F3A0f6A18;
+    address public destinationConnext = 0xB7CF5324641bD9F82903504c56c9DE2193B4822F;
 
+    // Adheres to the vault interface of BaseStrategy
+    VaultAPI public vaultA;
     VaultAPI public vaultB;
-    IVault public ivaultB;
+    
+    // ERC4626-compatible vault
+    IERC4626 public vaultWrapperA;
     IERC4626 public vaultWrapperB;
+
+    // Want token for the vault
+    IERC20 public wantA;
     IERC20 public wantB;
 
     address public gov = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
@@ -58,21 +66,20 @@ contract TestFixtureCustomStrat is ExtendedDSTest {
     uint256 public constant DELTA = 10**5;
 
     function setUp() public virtual {
-        // NOTE: skip a few seconds to avoid block.timestamp == 0
-        skip(10 seconds);
 
-        // create forks for the two domains
+        // ============ Forks ============
+
         domainA = vm.createFork(vm.envString("GOERLI_RPC_URL"));
-        domainB = vm.createFork(vm.envString("RINKEBY_RPC_URL"));
+        domainB = vm.createFork(vm.envString("OPT_GOERLI_RPC_URL"));
 
-        ////////////////// DOMAIN A SETUP //////////////////
+        // ============ Domain A: Vault ============
+        // Set up the vault that uses the ERC4626 interface on the origin domain.
+
         vm.selectFork(domainA);
 
-        // Create want token on domainA
         Token _tokenA = new Token(uint8(18));
         wantA = IERC20(_tokenA);
 
-        // Create vault that uses the ERC4626 interface on domainA
         address _vaultA = deployVault(
             address(wantA),
             gov,
@@ -82,20 +89,21 @@ contract TestFixtureCustomStrat is ExtendedDSTest {
             guardian,
             management
         );
-        ivaultA = IVault(_vaultA);
+        console.log("address of vaultA:", address(_vaultA));
+
         vaultA = VaultAPI(_vaultA);
         VaultWrapper _vaultWrapperA = new VaultWrapper(vaultA);
         vaultWrapperA = IERC4626(_vaultWrapperA);
 
-        ////////////////// DOMAIN B SETUP //////////////////
+        // ============ Domain B: Vault ============
+        // Set up the xchain vault that uses the ERC4626 interface on the destination domain.
+
         vm.selectFork(domainB);
 
-        // Create want token on domainB
         Token _tokenB = new Token(uint8(18));
         wantB = IERC20(_tokenB);
 
-        // Create vault that uses the ERC4626 interface on domainB
-        address _vaultB = deployVault(
+        address _vaultB = deployVyperVault(
             address(wantB),
             gov,
             rewards,
@@ -104,33 +112,53 @@ contract TestFixtureCustomStrat is ExtendedDSTest {
             guardian,
             management
         );
-        ivaultB = IVault(_vaultB);
+        console.log("address of vaultB:", address(_vaultB));
+        vm.makePersistent(address(vaultB));
         vaultB = VaultAPI(_vaultB);
+        vm.selectFork(domainA);
         VaultWrapper _vaultWrapperB = new VaultWrapper(vaultB);
-        vaultWrapperB = IERC4626(_vaultWrapperB);
+        // vaultWrapperB = IERC4626(_vaultWrapperB);
+
+        // ============ Misc ============
 
         // NOTE: assume Token is priced to 1 for simplicity
-        minFuzzAmt = 10**vaultA.decimals() / 10;
-        maxFuzzAmt = uint256(maxDollarNotional) * 10**vaultA.decimals();
-        bigAmount = uint256(bigDollarNotional) * 10**vaultA.decimals();
+        // minFuzzAmt = 10**vaultB.decimals() / 10;
+        // maxFuzzAmt = uint256(maxDollarNotional) * 10**vaultB.decimals();
+        // bigAmount = uint256(bigDollarNotional) * 10**vaultB.decimals();
 
-        vm.label(address(vaultA), "VaultA");
-        vm.label(address(wantA), "WantA");
-        vm.label(address(vaultWrapperA), "VaultWrapperA");
-        vm.label(address(vaultB), "VaultB");
-        vm.label(address(wantB), "WantB");
-        vm.label(address(vaultWrapperB), "VaultWrapperB");
-        vm.label(gov, "Gov");
-        vm.label(user, "User");
-        vm.label(whale, "Whale");
-        vm.label(rewards, "Rewards");
-        vm.label(guardian, "Guardian");
-        vm.label(management, "Management");
-        vm.label(strategist, "Strategist");
-        vm.label(keeper, "Keeper");
+        // // Make these persistent so that they can be accessed from other forks
+        // vm.makePersistent(gov);
+        // vm.makePersistent(user);
+        // vm.makePersistent(whale);
+        // vm.makePersistent(rewards);
+        // vm.makePersistent(guardian);
+        // vm.makePersistent(management);
+        // vm.makePersistent(strategist);
+        // vm.makePersistent(keeper);
+        // vm.makePersistent(address(wantA));
+        // vm.makePersistent(address(wantB));
+        // vm.makePersistent(address(vaultA));
+        // vm.makePersistent(address(vaultB));
+        // vm.makePersistent(address(vaultWrapperA));
+        // vm.makePersistent(address(vaultWrapperB));
+
+        // vm.label(gov, "Gov");
+        // vm.label(user, "User");
+        // vm.label(whale, "Whale");
+        // vm.label(rewards, "Rewards");
+        // vm.label(guardian, "Guardian");
+        // vm.label(management, "Management");
+        // vm.label(strategist, "Strategist");
+        // vm.label(keeper, "Keeper");
+        // vm.label(address(vaultA), "VaultA");
+        // vm.label(address(vaultB), "VaultB");
+        // vm.label(address(wantA), "WantA");
+        // vm.label(address(wantB), "WantB");
+        // // vm.label(address(vaultWrapperA), "VaultWrapperA");
+        // vm.label(address(vaultWrapperB), "VaultWrapperB");
     }
 
-    // Deploys a vault
+    // Deploys a vault from the artifact
     function deployVault(
         address _token,
         address _gov,
@@ -140,11 +168,11 @@ contract TestFixtureCustomStrat is ExtendedDSTest {
         address _guardian,
         address _management
     ) public returns (address) {
-        vm.prank(_gov);
+        vm.startPrank(_gov);
+
         address _vaultAddress = deployCode(vaultArtifact);
         IVault _vault = IVault(_vaultAddress);
 
-        vm.prank(_gov);
         _vault.initialize(
             _token,
             _gov,
@@ -155,9 +183,57 @@ contract TestFixtureCustomStrat is ExtendedDSTest {
             _management
         );
 
-        vm.prank(_gov);
         _vault.setDepositLimit(type(uint256).max);
 
+        vm.stopPrank();
+
         return address(_vault);
+    }
+
+    // Deploys a vault from the Vyper contract
+    function deployVyperVault(
+        address _token,
+        address _gov,
+        address _rewards,
+        string memory _name,
+        string memory _symbol,
+        address _guardian,
+        address _management
+    ) public returns (address) {
+        ///@notice create a list of strings with the commands necessary to compile Vyper contracts
+        string[] memory cmds = new string[](2);
+        cmds[0] = "vyper";
+        cmds[1] = "../../vyper_contracts/Vault.vy";
+
+        ///@notice compile the Vyper contract and return the bytecode
+        bytes memory bytecode = vm.ffi(cmds);
+
+        // //add args to the deployment bytecode
+        // bytes memory bytecode = abi.encodePacked(_bytecode, args);
+
+        ///@notice deploy the bytecode with the create instruction
+        address deployedAddress;
+        assembly {
+            deployedAddress := create(0, add(bytecode, 0x20), mload(bytecode))
+        }
+
+        ///@notice check that the deployment was successful
+        require(
+            deployedAddress != address(0),
+            "VyperDeployer could not deploy contract"
+        );
+
+        IVault(deployedAddress).initialize(
+            _token,
+            _gov,
+            _rewards,
+            _name,
+            _symbol,
+            _guardian,
+            _management
+        );
+
+        ///@notice return the address that the contract was deployed to
+        return deployedAddress;
     }
 }

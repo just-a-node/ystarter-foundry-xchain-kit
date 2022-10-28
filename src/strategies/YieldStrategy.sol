@@ -5,6 +5,8 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {BaseStrategyInitializable, StrategyParams, VaultAPI} from "@yearnvaults/contracts/BaseStrategy.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "forge-std/console.sol";
+import {IConnextHandler} from "nxtp/core/connext/interfaces/IConnextHandler.sol";
+import {IExecutor} from "nxtp/core/connext/interfaces/IExecutor.sol";
 
 /*
  * Yield strategy.
@@ -12,33 +14,16 @@ import "forge-std/console.sol";
 
 // DEV NOTE: to simulate gains just transfer/airdrop tokens to this contract and call harvest
 // DEV NOTE: for instructive purposes we avoid using unchecked block in some spots
-contract XChainStrategy is BaseStrategyInitializable {
-    bool public delegateEverything;
-
+contract YieldStrategy is BaseStrategyInitializable {
     // Some token that needs to be protected for some reason
     // Initialize this to some fake address, because we're just using it
     // to test `BaseStrategy.protectedTokens()`
     address public constant PROTECTED_TOKEN = address(0xbad);
 
-    constructor(address _vault) BaseStrategyInitializable(_vault) {
-        console.log("Constructor");
-    }
+    constructor(address _vault) BaseStrategyInitializable(_vault) {}
 
     function name() external pure override returns (string memory) {
         return string(abi.encodePacked("YieldStrategy ", apiVersion()));
-    }
-
-    // NOTE: This is a test-only function to simulate delegation
-    function _toggleDelegation() public {
-        delegateEverything = !delegateEverything;
-    }
-
-    function delegatedAssets() external view override returns (uint256) {
-        if (delegateEverything) {
-            return vault.strategies(address(this)).totalDebt;
-        } else {
-            return 0;
-        }
     }
 
     // NOTE: This is a test-only function to simulate losses
